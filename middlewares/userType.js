@@ -17,8 +17,10 @@ router.use(async function (req, res, next) {
                 email: user_email,
             }
         });
+        user.id = Number(user.id.toString().replace('n', ''));
         if (user) {
             req.decoded.user_type = user.user_type;
+            req.decoded.user_id = user.id;
             next();
         }
         else {

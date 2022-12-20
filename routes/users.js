@@ -8,7 +8,6 @@ const dotenv = require('dotenv');
 const jwt = require('jsonwebtoken');
 const jwtMiddleware = require('../middlewares/jwt');
 const { createClient } = require('redis');
-const { reduceEachTrailingCommentRange } = require('typescript');
 
 dotenv.config();
 
@@ -18,7 +17,10 @@ const redis = createClient({ host: process.env.REDIS_HOST, port: process.env.RED
 const prisma = new PrismaClient();
   
 
-function generateAccessToken(username) {
+function generateAccessToken(username, remember) {
+    if (remember) {
+        return jwt.sign(username, process.env.TOKEN_SECRET, { expiresIn: '259200s' });
+    }
     return jwt.sign(username, process.env.TOKEN_SECRET, { expiresIn: '3600s' });
 }
   
@@ -36,7 +38,8 @@ router.get('/verify', jwtMiddleware, async function(req, res, next) {
 router.post('/login', async function(req, res, next) {
     const schema = Joi.object({
         email: Joi.string().email().required(),
-        password: Joi.string().required()
+        password: Joi.string().required(),
+        remember: Joi.boolean().required(),
     });
     const { error, value } = schema.validate(req.body);
     if (error) {
@@ -53,7 +56,7 @@ router.post('/login', async function(req, res, next) {
     if (user) {
         const match = await bcrypt.compare(value.password, user.password);
         if (match) {
-            const token = generateAccessToken({ username: user.email });
+            const token = generateAccessToken({ username: user.email }, value.remember);
             res.status(200).json({ message: 'Login successful' , token: token, user_type: user.user_type});
             return;
         } else {
@@ -75,7 +78,7 @@ router.get('/logout', async function(req, res, next) {
     await redis.connect();
     await redis.set(token, 'true');
     await redis.expire(token, maxAge);
-    await redis.disconnect();
+    await redis.quit();
     res.json({ message: 'Logout successful' });
     return;
 });
@@ -106,7 +109,14 @@ router.post('/register', async function(req, res, next) {
         res.status(422).json({ error: error.details[0].message });
         return;
     }
-    
+
+    if (value.user_type === 'coordinator') {
+        if (!value.company || !value.employee_id) {
+            res.status(422).json({ error: 'Company and Employee ID are required for coordinator' });
+            return;
+        }
+    }
+        
     value['password'] = bcrypt.hashSync(value['password'], saltRounds);
 
     try {
@@ -122,6 +132,109 @@ router.post('/register', async function(req, res, next) {
         }
         else {
             res.status(401).json({ error: err.message });
+            return;
+        }
+    }
+});
+
+router.get('/getprofile', jwtMiddleware, async function(req, res, next) {
+    const user = await prisma.users.findUnique({
+        select: {
+            name: true,
+            email: true,
+            phone: true,
+            address: true,
+            city: true,
+            state: true,
+            zip: true,
+            country: true,
+            age: true,
+            marketing: true,
+            company: true,
+            employee_id: true,
+            user_type: true,
+        },
+        where: {
+            email: req.decoded.username,
+        }
+    });
+    res.json({ user: user });
+    return;
+});
+
+router.post('/updateprofile', jwtMiddleware, async function(req, res, next) {
+    const schema = Joi.object({
+        name: Joi.string().min(3).required(),
+        phone: Joi.string().min(10).required(),
+        address: Joi.string().min(1).required(),
+        city: Joi.string().min(1).required(),
+        state: Joi.string().min(1).required(),
+        zip: Joi.string().min(1).required(),
+        country: Joi.string().min(1).required(),
+        marketing: Joi.boolean().required(),
+    });
+
+    const { error, value } = schema.validate(req.body);
+    if (error) {
+        res.status(422).json({ error: error.details[0].message });
+        return;
+    }
+
+    try {
+        const users = await prisma.users.update({
+            where: {
+                email: req.decoded.username,
+            },
+            data: value,
+        });
+        res.status(200).json({ message: 'User updated successfully' });
+        return;
+    }
+    catch (err) {
+        res.status(401).json({ error: err.message });
+        return;
+    }
+});
+
+router.post('/updatepassword', jwtMiddleware, async function(req, res, next) {
+    const schema = Joi.object({
+        old_password: Joi.string().min(8).required(),
+        new_password: Joi.string().min(8).required(),
+        new_password_confirm: Joi.string().min(8).required(),
+    });
+
+    const { error, value } = schema.validate(req.body);
+    if (error) {
+        res.status(422).json({ error: error.details[0].message });
+        return;
+    }
+
+    if (value.new_password !== value.new_password_confirm) {
+        res.status(422).json({ error: 'New passwords do not match' });
+        return;
+    }
+
+    const user = await prisma.users.findUnique({
+        where: {
+            email: req.decoded.username,
+        }
+    });
+
+    if (user) {
+        const match = await bcrypt.compare(value.old_password, user.password);
+        if (match) {
+            const users = await prisma.users.update({
+                where: {
+                    email: req.decoded.username,
+                },
+                data: {
+                    password: bcrypt.hashSync(value.new_password, saltRounds),
+                }
+            });
+            res.status(200).json({ message: 'Password updated successfully' });
+            return;
+        } else {
+            res.status(401).json({ error: 'Invalid credentials specified' });
             return;
         }
     }

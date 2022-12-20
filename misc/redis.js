@@ -8,7 +8,7 @@ const redis = createClient({ host: process.env.REDIS_HOST, port: process.env.RED
 async function isTokenBlacklisted(token){
     await redis.connect();
     response = await redis.get(token);
-    await redis.disconnect();
+    await redis.quit();
     if (response === null) {
         return false;
     }

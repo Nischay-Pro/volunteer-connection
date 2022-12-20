@@ -30,7 +30,65 @@ router.get('/getshifts', jwtMiddleware, userTypeMiddleware, async function(req, 
         res.json({ shifts: shifts });
         return;
     }
+    else if(isUserType(req, userTypes.volunteer)) {
+        const shifts = await prisma.$queryRaw`
+        SELECT id, start_time, end_time, max_volunteers, work_type, location, description FROM shifts
+        WHERE id NOT IN (
+            SELECT shift_id FROM jobs
+            WHERE jobs.user_id = ${req.decoded.user_id}
+        )
+        AND shifts.max_volunteers > (
+            SELECT count(shift_id) FROM jobs
+            WHERE shift_id = shifts.id
+        )
+        AND start_time > NOW()`;
+        res.json({ shifts: shifts });
+        return;
+    }
     else{
+        res.status(401).json({ error: 'User not authorized' });
+        return;
+    }
+});
+
+router.post('/registershift/:id', jwtMiddleware, userTypeMiddleware, async function(req, res, next) {
+    if (isUserType(req, userTypes.volunteer)) {
+        const shift = await prisma.shifts.findUnique({
+            where: {
+                id: Number(req.params.id)
+            }
+        });
+        const jobCount = await prisma.jobs.count({
+            where: {
+                shift_id: Number(req.params.id)
+            }
+        });
+        if (shift) {
+            if (jobCount >= shift.max_volunteers) {
+                res.status(400).json({ error: 'Shift is full' });
+                return;
+            }
+            try{
+                const job = await prisma.jobs.create({
+                    data: {
+                        shift_id: shift.id,
+                        user_id: req.decoded.user_id
+                    }
+                });
+                res.json({ job: job });
+                return;
+            }
+            catch (err) {
+                res.status(400).json({ error: 'Shift already registered' });
+                return;
+            }
+        }
+        else {
+            res.status(404).json({ error: 'Shift not found' });
+            return;
+        }
+    }
+    else {
         res.status(401).json({ error: 'User not authorized' });
         return;
     }
@@ -39,30 +97,58 @@ router.get('/getshifts', jwtMiddleware, userTypeMiddleware, async function(req, 
 
 router.get('/getjobs', jwtMiddleware, userTypeMiddleware, async function(req, res, next) {
     if (isUserType(req, userTypes.volunteer)) {
-        const shifts = await prisma.jobs.findMany({
-            where: {
-                user_id: req.decoded.id
-            }
-        });
-        const shiftList = [];
-        for (const shift of shifts) {
-            const shiftData = await prisma.shifts.findUnique({
-                where: {
-                    id: shift.id
-                },
-                include: { 
-                    event: true
-                }
-            });
-            shiftList.push(shiftData);
-        }
-        res.json({ shifts: shiftList });
+        const shifts = await prisma.$queryRaw`
+        SELECT * FROM shifts
+        WHERE shifts.id IN (
+            SELECT shift_id FROM jobs
+            WHERE jobs.user_id = ${req.decoded.user_id}
+        )`;
+        res.json({ shifts: shifts });
         return
     }
     else if (isUserType(req, userTypes.admin)) {
         const shifts = await prisma.shifts.findMany();
         res.json({ shifts: shifts });
         return
+    }
+});
+
+router.delete('/dropjob/:id', jwtMiddleware, userTypeMiddleware, async function(req, res, next) {
+    if (isUserType(req, userTypes.volunteer)) {
+        const job = await prisma.jobs.findUnique({
+            where: {
+                user_id_shift_id:
+                    {
+                        shift_id: Number(req.params.id),
+                        user_id: req.decoded.user_id
+                    }
+            }
+        });
+        if (job) {
+            const action = await prisma.jobs.delete({
+                where: {
+                    user_id_shift_id:
+                        {
+                            shift_id: Number(req.params.id),
+                            user_id: req.decoded.user_id
+                        }
+                }
+            });
+            if (!action) {
+                res.status(500).json({ error: 'Error dropping job' });
+                return;
+            }
+            res.json({ message: 'Job dropped' });
+            return;
+        }
+        else {
+            res.status(404).json({ error: 'Job not found' });
+            return;
+        }
+    }
+    else {
+        res.status(401).json({ error: 'User not authorized' });
+        return;
     }
 });
 

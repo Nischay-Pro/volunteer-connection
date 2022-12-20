@@ -1,0 +1,7 @@
+*.env
+*.env.example
+docker/*
+.gitignore
+.github/*
+node_modules/*
+README.md
