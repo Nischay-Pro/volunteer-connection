@@ -25,9 +25,9 @@ router.get('/getshifts', jwtMiddleware, userTypeMiddleware, async function(req, 
             }
         });
         for (const shift of shifts) {
+            shift.date = new Date(shift.start_time).toLocaleDateString();
             shift.start_time = shift.start_time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
             shift.end_time = shift.end_time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            shift.date = new Date(shift.start_time).toLocaleDateString();
         }
         res.json({ shifts: shifts });
         return;
@@ -45,9 +45,9 @@ router.get('/getshifts', jwtMiddleware, userTypeMiddleware, async function(req, 
         )
         AND start_time > NOW()`;
         for (const shift of shifts) {
+            shift.date = new Date(shift.start_time).toLocaleDateString();
             shift.start_time = shift.start_time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
             shift.end_time = shift.end_time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            shift.date = new Date(shift.start_time).toLocaleDateString();
         }
         res.json({ shifts: shifts });
         return;
@@ -111,9 +111,9 @@ router.get('/getjobs', jwtMiddleware, userTypeMiddleware, async function(req, re
             WHERE jobs.user_id = ${req.decoded.user_id}
         )`;
         for (const shift of shifts) {
+            shift.date = new Date(shift.start_time).toLocaleDateString();
             shift.start_time = shift.start_time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
             shift.end_time = shift.end_time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            shift.date = new Date(shift.start_time).toLocaleDateString();
         }
         res.json({ shifts: shifts });
         return

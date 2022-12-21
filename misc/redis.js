@@ -7,14 +7,20 @@ dotenv.config();
 const redis = createClient({ url: process.env.REDIS_URL });
 
 async function isTokenBlacklisted(token){
-    await redis.connect();
-    response = await redis.get(token);
-    await redis.quit();
-    if (response === null) {
-        return false;
+    try {
+        await redis.connect();
+        const response = await redis.get(token);
+        await redis.quit();
+        if (response === null) {
+            return false;
+        }
+        else {
+            return true;
+        }
     }
-    else {
-        return true;
+    catch (err) {
+        console.log(err);
+        return false;
     }
 };
 

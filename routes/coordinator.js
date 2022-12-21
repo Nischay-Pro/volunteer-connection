@@ -43,6 +43,80 @@ router.get('/getusers', jwtMiddleware, userTypeMiddleware, async function(req, r
     }
 });
 
+router.get('/getshifts', jwtMiddleware, userTypeMiddleware, async function(req, res, next) {
+    if (isUserType(req, userTypes.coordinator)) {
+        const shifts = await prisma.$queryRaw`
+        SELECT id, start_time, end_time, max_volunteers, work_type, location, description FROM shifts
+        WHERE shifts.max_volunteers > (
+            SELECT count(shift_id) FROM jobs
+            WHERE shift_id = shifts.id
+        )
+        AND start_time > NOW()`;
+        for (const shift of shifts) {
+            shift.date = new Date(shift.start_time).toLocaleDateString();
+            shift.start_time = shift.start_time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            shift.end_time = shift.end_time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+        }
+        res.json({ shifts: shifts });
+    }
+    else{
+        res.status(401).json({ error: 'User not authorized' });
+        return;
+    }
+});
+
+router.post('/groupregister/:id', jwtMiddleware, userTypeMiddleware, async function(req, res, next) {
+    if (isUserType(req, userTypes.coordinator)) {
+
+        const shift_id = parseInt(req.params.id);
+        const shift = await prisma.shifts.findUnique({
+            where: {
+                id: shift_id,
+            }
+        });
+
+        if (shift === null) {
+            res.status(404).json({ error: 'Shift not found' });
+            return;
+        }
+
+        const employee_id = await prisma.users.findUnique({
+            where: {
+                email: req.decoded.username,
+            },
+            select: {
+                employee_id: true,
+            }
+        });
+
+        const users = await prisma.users.findMany({
+            where: {
+                employee_id: employee_id.employee_id,
+                user_type: userTypes.volunteer,
+            },
+            select: {
+                id: true,
+            }
+        });
+
+        const jobs = await prisma.jobs.createMany({
+            data: users.map(user => ({
+                shift_id: shift_id,
+                user_id: user.id,
+            })),
+            skipDuplicates: true,
+        });
+
+        res.json({ jobs: jobs });
+
+    }
+
+    else{
+        res.status(401).json({ error: 'User not authorized' });
+        return;
+    }
+});
+
 router.post('/deleteuser/:id', jwtMiddleware, userTypeMiddleware, async function(req, res, next) {
     if (isUserType(req, userTypes.coordinator)) {
         const user = await prisma.users.findUnique({
