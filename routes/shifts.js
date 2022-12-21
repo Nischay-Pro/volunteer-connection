@@ -1,15 +1,12 @@
 var express = require('express');
 const { PrismaClient } = require("@prisma/client");
 var router = express.Router();
-const dotenv = require('dotenv');
 const userTypeMiddleware = require('../middlewares/userType');
 const jwtMiddleware = require('../middlewares/jwt');
 const isUserType = require('../misc/istype').isUserType;
 const userTypes = require('../misc/enum').userType;
 const shiftTypes = require('../misc/enum').shiftType;
 const Joi = require('joi');
-
-dotenv.config();
 
 const prisma = new PrismaClient();
 
@@ -27,6 +24,11 @@ router.get('/getshifts', jwtMiddleware, userTypeMiddleware, async function(req, 
                 description: true,
             }
         });
+        for (const shift of shifts) {
+            shift.start_time = shift.start_time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            shift.end_time = shift.end_time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            shift.date = new Date(shift.start_time).toLocaleDateString();
+        }
         res.json({ shifts: shifts });
         return;
     }
@@ -42,6 +44,11 @@ router.get('/getshifts', jwtMiddleware, userTypeMiddleware, async function(req, 
             WHERE shift_id = shifts.id
         )
         AND start_time > NOW()`;
+        for (const shift of shifts) {
+            shift.start_time = shift.start_time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            shift.end_time = shift.end_time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            shift.date = new Date(shift.start_time).toLocaleDateString();
+        }
         res.json({ shifts: shifts });
         return;
     }
@@ -103,6 +110,11 @@ router.get('/getjobs', jwtMiddleware, userTypeMiddleware, async function(req, re
             SELECT shift_id FROM jobs
             WHERE jobs.user_id = ${req.decoded.user_id}
         )`;
+        for (const shift of shifts) {
+            shift.start_time = shift.start_time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            shift.end_time = shift.end_time.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            shift.date = new Date(shift.start_time).toLocaleDateString();
+        }
         res.json({ shifts: shifts });
         return
     }

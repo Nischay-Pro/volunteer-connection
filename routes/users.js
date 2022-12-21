@@ -11,8 +11,7 @@ const { createClient } = require('redis');
 
 dotenv.config();
 
-const redis = createClient({ host: process.env.REDIS_HOST, port: process.env.REDIS_PORT });
-
+const redis = createClient({ url: process.env.REDIS_URL});
 
 const prisma = new PrismaClient();
   

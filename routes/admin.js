@@ -16,7 +16,6 @@ const os = require('os');
 const csv = require('csvtojson');
 const shiftTypes = require('../misc/enum').shiftType;
 const Joi = require('joi');
-const { exit } = require('process');
 
 tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'volunteer-connection-'));
 

@@ -25,8 +25,10 @@ ENV NODE_ENV production
 
 # RUN npm install
 
+RUN chmod +x ./entrypoint.sh
+
 EXPOSE 8000
 
 RUN npx prisma generate
 
-ENTRYPOINT ["/sbin/tini", "--", "npm", "start"]
+ENTRYPOINT ["/sbin/tini", "--", "./entrypoint.sh"]

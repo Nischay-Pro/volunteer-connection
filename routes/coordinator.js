@@ -1,15 +1,12 @@
 var express = require('express');
 const { PrismaClient } = require("@prisma/client");
 var router = express.Router();
-const dotenv = require('dotenv');
 const userTypeMiddleware = require('../middlewares/userType');
 const jwtMiddleware = require('../middlewares/jwt');
 const isUserType = require('../misc/istype').isUserType;
 const userTypes = require('../misc/enum').userType;
 const shiftTypes = require('../misc/enum').shiftType;
 const Joi = require('joi');
-
-dotenv.config();
 
 const prisma = new PrismaClient();
 
